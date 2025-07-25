@@ -1,3 +1,5 @@
+// Particle Simulator with Fire support added (fixed null object check)
+
 const GRID_WIDTH = 100;
 const GRID_HEIGHT = 100;
 const PIXEL_SIZE = 4;
@@ -12,14 +14,12 @@ const materialSelector = document.getElementById("material");
 
 const MATERIALS = {
   sand: { color: "goldenrod", density: 2 },
-  water: { color: "deepskyblue", density: 1},
+  water: { color: "deepskyblue", density: 1 },
   wall: { color: "gray", density: Infinity },
+  fire: { color: "orangered", density: 0 },
+  oil: { color: "darkgoldenrod", density: 0.8 },
+  vine: { color: "mediumseagreen", density: 0 },
 };
-
-
-function isPassable(type) {
-  return type === null;
-}
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -42,30 +42,28 @@ function update() {
   for (let y = GRID_HEIGHT - 2; y >= 0; y--) {
     for (let x = 0; x < GRID_WIDTH; x++) {
       const i = index(x, y);
-      const type = grid[i];
+      const cell = grid[i];
+      const type = (typeof cell === "object" && cell !== null) ? cell.type : cell;
 
       if (type === "sand") {
         const below = index(x, y + 1);
         const downLeft = x > 0 ? index(x - 1, y + 1) : -1;
         const downRight = x < GRID_WIDTH - 1 ? index(x + 1, y + 1) : -1;
 
-        const dirs = Math.random() < 0.5
-          ? [below, downLeft, downRight]
-          : [below, downRight, downLeft];
+        const dirs = Math.random() < 0.5 ? [below, downLeft, downRight] : 
+          [below, downRight, downLeft];
 
         for (const target of dirs) {
           if (target === -1) continue;
 
           const targetType = grid[target];
 
-          // If target is empty, move
           if (targetType === null) {
             grid[target] = "sand";
             grid[i] = null;
             break;
           }
 
-          // If target is water and lighter, swap
           if (
             targetType === "water" &&
             MATERIALS["sand"].density > MATERIALS["water"].density
@@ -84,18 +82,101 @@ function update() {
         const downLeft = x > 0 ? index(x - 1, y + 1) : -1;
         const downRight = x < GRID_WIDTH - 1 ? index(x + 1, y + 1) : -1;
 
-        const dirs = shuffle([
-          below, downLeft, downRight,
-          left, right
-        ]);
+        const dirs = shuffle([below, downLeft, downRight, left, right]);
 
         for (const target of dirs) {
-          const targetType = grid[target];
-          if (target !== -1 && isPassable(targetType)) {
+          if (target !== -1 && grid[target] === null) {
             grid[target] = "water";
             grid[i] = null;
             break;
           }
+        }
+      }
+
+      if (type === "oil") {
+        const below = index(x, y + 1);
+        const left = x > 0 ? index(x - 1, y) : -1;
+        const right = x < GRID_WIDTH - 1 ? index(x + 1, y) : -1;
+        const downLeft = x > 0 ? index(x - 1, y + 1) : -1;
+        const downRight = x < GRID_WIDTH - 1 ? index(x + 1, y + 1) : -1;
+
+        const dirs = shuffle([below, downLeft, downRight, left, right]);
+
+        for (const target of dirs) {
+          if (target !== -1 && grid[target] === null) {
+            grid[target] = "oil";
+            grid[i] = null;
+            break;
+          }
+        }
+      }
+
+     if (cell && typeof cell === "object" && cell.type === "vine") {
+      cell.age = (cell.age || 0) + 1;
+      if (cell.age > 30) continue; // Stop growing after a while
+
+      const growChance = 0.05;
+      if (Math.random() < growChance) {
+        const growTargets = shuffle([
+          [x, y - 1], // up
+          [x - 1, y], // left
+          [x + 1, y], // right
+        ]);
+
+        for (const [nx, ny] of growTargets) {
+          if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) continue;
+
+          const ni = index(nx, ny);
+          if (grid[ni] === null) {
+            // Check if there's a wall next to it to cling to
+            const neighbors = [
+              index(nx - 1, ny),
+              index(nx + 1, ny),
+              index(nx, ny + 1),
+            ];
+
+            const nearWall = neighbors.some(
+              (ni2) =>
+                ni2 >= 0 &&
+                ni2 < grid.length &&
+                grid[ni2] === "wall"
+            );
+
+            // Prefer to grow if touching wall, or just grow randomly
+            if (nearWall || Math.random() < 0.5) {
+              grid[ni] = { type: "vine", age: 0 };
+              break;
+            }
+          }
+        }
+      }
+    }
+ 
+
+      if (typeof cell === "object" && cell !== null && cell.type === "fire") {
+        cell.age++;
+
+        const FLAME_LIFESPAN = 5;
+        const spreadTargets = [
+          [x, y - 1],
+          [x, y + 1],
+          [x - 1, y],
+          [x + 1, y],
+        ];
+
+        for (const [nx, ny] of spreadTargets) {
+          if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) continue;
+
+          const ni = index(nx, ny);
+          const neighbor = grid[ni];
+
+          if (neighbor === "oil" || neighbor === "vine") {
+            grid[ni] = { type: "fire", age: 0 };
+          }
+        }
+
+        if (cell.age >= FLAME_LIFESPAN) {
+          grid[i] = null;
         }
       }
     }
@@ -106,13 +187,24 @@ function draw() {
   context.clearRect(0, 0, canvas.width, canvas.height);
   for (let y = 0; y < GRID_HEIGHT; y++) {
     for (let x = 0; x < GRID_WIDTH; x++) {
-      const type = grid[index(x, y)];
-      if (type && MATERIALS[type]) {
-        drawPixel(x, y, MATERIALS[type].color);
+      const cell = grid[index(x, y)];
+      if (cell !== null) {
+        let type;
+        if (typeof cell === "object" && cell !== null) {
+          type = cell.type;
+        } else {
+          type = cell;
+        }
+
+        const mat = MATERIALS[type];
+        if (mat && mat.color) {
+          drawPixel(x, y, mat.color);
+        }
       }
     }
   }
 }
+
 
 function loop() {
   update();
@@ -133,11 +225,25 @@ canvas.addEventListener("mousemove", (e) => {
   const x = Math.floor((e.clientX - rect.left) / PIXEL_SIZE);
   const y = Math.floor((e.clientY - rect.top) / PIXEL_SIZE);
   const type = materialSelector.value;
+  console.log("Selected material:", type);
+  let particle = null;
+
+  if (type === "erase") {
+    particle = null;
+  } else if (type === "fire") {
+    particle = { type: "fire", age: 0 };
+  } else if (type === "vine"){
+    particle = { type: "vine" };
+    console.log("Placed vine at", x, y);
+  } else {
+    particle = type;
+  }
 
   if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-    grid[index(x, y)] = type === "erase" ? null : type;
+    grid[index(x, y)] = particle;
   }
 });
 
 loop();
+
 
