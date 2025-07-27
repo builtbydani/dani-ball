@@ -1,7 +1,7 @@
-// Particle Simulator with Fire support added (fixed null object check)
-
-const GRID_WIDTH = 100;
-const GRID_HEIGHT = 100;
+// Daniball - particle sim inspired by Danball.jp
+document.addEventListener("DOMContentLoaded", () => {
+const GRID_WIDTH = 150;
+const GRID_HEIGHT = 150;
 const PIXEL_SIZE = 4;
 
 const canvas = document.getElementById("sim");
@@ -10,16 +10,33 @@ canvas.height = GRID_HEIGHT * PIXEL_SIZE;
 const context = canvas.getContext("2d");
 
 const grid = Array(GRID_WIDTH * GRID_HEIGHT).fill(null);
-const materialSelector = document.getElementById("material");
+
 
 const MATERIALS = {
-  sand: { color: "goldenrod", density: 2 },
-  water: { color: "deepskyblue", density: 1 },
-  wall: { color: "gray", density: Infinity },
-  fire: { color: "orangered", density: 0 },
-  oil: { color: "darkgoldenrod", density: 0.8 },
-  vine: { color: "mediumseagreen", density: 0 },
+  sand: { color: "#ffbd23", density: 2 },
+  water: { color: "#4ebcff", density: 1 },
+  wall: { color: "#bcbcbc", density: Infinity },
+  fire: { color: "#ff4249", density: 0 },
+  oil: { color: "#91482f", density: 0.8 },
+  vine: { color: "#93fc68", density: 0 },
+  acid: { color: "#49ff42", density: 0.9 },
+  steel: { color: "#515154", density: Infinity },
+  smoke: { color: "lightgray", density: 0 },
 };
+
+let selectedMaterial = "sand";
+
+document.querySelectorAll(".material-btn").forEach(btn => {
+  const color = btn.getAttribute("data-color");
+  if (color) {
+    btn.style.backgroundColor = color;
+  }
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".material-btn").forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    selectedMaterial = btn.dataset.material;
+  });
+});
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -111,9 +128,50 @@ function update() {
         }
       }
 
+      if (type === "acid") {
+        const below = index(x, y + 1);
+        const left = x > 0 ? index(x - 1, y) : -1;
+        const right = x < GRID_WIDTH - 1 ? index(x + 1, y) : -1;
+        const downLeft = x > 0 ? index(x - 1, y + 1) : -1;
+        const downRight = x < GRID_WIDTH - 1 ? index(x + 1, y + 1) : -1;
+
+        const dirs = shuffle([below, downLeft, downRight, left, right]);
+
+        for (const target of dirs) {
+          if (target !== -1 && grid[target] === null) {
+            grid[target] = "acid";
+            grid[i] = null;
+            break;
+          }
+        }
+
+        const meltTargets = ["sand", "wall", "vine", "oil"];
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            const neighbor = index(nx, ny);
+            const ni = index(nx, ny);
+            if (ni === -1 || grid[ni] === null) continue;
+            
+            const nCell = grid[ni];
+            const nType = (typeof nCell === "object") ? nCell.type : nCell;
+
+            if (meltTargets.includes(nType)) {
+              if (Math.random() < 0.1) {
+                grid[ni] = "acid";
+              } else {
+                grid[ni] = null;
+              }
+            }
+          }
+        }
+      }
+
      if (cell && typeof cell === "object" && cell.type === "vine") {
       cell.age = (cell.age || 0) + 1;
-      if (cell.age > 30) continue; // Stop growing after a while
+      if (cell.age > 45) continue; // Stop growing after a while
 
       const growChance = 0.05;
       if (Math.random() < growChance) {
@@ -170,12 +228,49 @@ function update() {
           const ni = index(nx, ny);
           const neighbor = grid[ni];
 
-          if (neighbor === "oil" || neighbor === "vine") {
+          if (neighbor === "oil") {
             grid[ni] = { type: "fire", age: 0 };
+          }
+
+          if (neighbor && typeof neighbor === "object" && neighbor.type === "vine") {
+            if (Math.random() < 0.2) {
+              grid[ni] = { type: "fire", age: 0 };
+            }
           }
         }
 
+        if (y > 0) {
+              const above = index(x, y - 1);
+              if (grid[above] === null && Math.random() < 0.4) {
+                grid[above] = { type: "smoke", age: 0};
+              }
+        }
+
         if (cell.age >= FLAME_LIFESPAN) {
+          grid[i] = null;
+        }
+      }
+    }
+  }
+
+  for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (let x = 0; x < GRID_WIDTH; x++) {
+      const i = index(x, y);
+      const cell = grid[i]; 
+      if (cell && typeof cell === "object" && cell.type === "smoke") {
+        cell.age++;
+        const dx = Math.floor(Math.random() * 3) - 1;
+        const nx = x + dx;
+        const ny = y - 1;
+        if (nx >= 0 && nx < GRID_WIDTH && ny >= 0) {
+          const ni = index(nx, ny);
+          if (grid[ni] === null) {
+            grid[ni] = { type: "smoke", age: cell.age };
+            grid[i] = null;
+          }
+        }
+
+        if (cell.age > 20) {
           grid[i] = null;
         }
       }
@@ -224,7 +319,7 @@ canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = Math.floor((e.clientX - rect.left) / PIXEL_SIZE);
   const y = Math.floor((e.clientY - rect.top) / PIXEL_SIZE);
-  const type = materialSelector.value;
+  const type = selectedMaterial;
   console.log("Selected material:", type);
   let particle = null;
 
@@ -239,11 +334,31 @@ canvas.addEventListener("mousemove", (e) => {
     particle = type;
   }
 
-  if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-    grid[index(x, y)] = particle;
+  const brushSize = (type === "wall" || type === "steel") 
+    ? 5 
+    : parseInt(document.getElementById("brush").value);
+
+  for (let dx = -Math.floor(brushSize / 2); dx <= Math.floor(brushSize / 2); dx++) {
+    for (let dy = -Math.floor(brushSize / 2); dy <= Math.floor(brushSize / 2); dy++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const ni = index(nx, ny);
+      if (nx >= 0 && nx < GRID_WIDTH && ny >= 0 && ny < GRID_HEIGHT) {
+        if (type === "erase" || grid[ni] === null) {
+          grid[ni] = (particle && typeof particle === "object")
+            ? structuredClone(particle)
+            : particle;
+        }
+      }
+    }
   }
 });
 
-loop();
+loop(); 
 
-
+document.getElementById("clear-btn").addEventListener("click", () => {
+  for (let i = 0; i < grid.length; i++) {
+    grid[i] = null;
+  }
+});
+});

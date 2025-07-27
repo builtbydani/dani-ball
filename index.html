@@ -1,29 +1,68 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width-device-width, initial-scale=1.0"/>
-    <title>Particle Playground</title>
-    <link rel="stylesheet" href="style.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dani-Ball</title>
+    <link rel="stylesheet" href="style.css" />
   </head>
 
   <body>
-    <div id="toolbar">
-      <label>Material:
-        <select id="material">
-          <option value="sand">Sand</option>
-          <option value="wall">Wall</option>
-          <option value="water">Water</option>
-          <option value="fire">Fire</option>
-          <option value="oil">Oil</option>
-          <option value="vine">Vine</option>
-          <option value="erase">Erase</option>
-        </select>
-      </label>
+    <h1 class="title">DaniBall</h1>
+
+    <div id="main-container">
+      <!-- Left Side: Material Toolbar -->
+      <div id="left-panel">
+        <div id="material-toolbar">
+          <button class="material-btn" data-material="sand" title="Sand" data-color="#ffbd23">
+            <img src="assets/sand.svg" alt="Sand" />
+          </button>
+          <button class="material-btn" data-material="water" title="Water" data-color="#4ebcff">
+            <img src="assets/water.svg" alt="Water" />
+          </button>
+          <button class="material-btn" data-material="oil" title="Oil" data-color="#91482f">
+            <img src="assets/oil.svg" alt="Oil" />
+          </button>
+          <button class="material-btn" data-material="fire" title="Fire" data-color="#ff4249">
+            <img src="assets/fire.svg" alt="Fire" />
+          </button>
+          <button class="material-btn" data-material="vine" title="Vine" data-color="#93fc68">
+            <img src="assets/vine.svg" alt="Vine" />
+          </button>
+          <button class="material-btn" data-material="acid" title="Acid" data-color="#49ff42">
+            <img src="assets/acid.svg" alt="Acid" />
+          </button>
+          <button class="material-btn" data-material="wall" title="Wall" data-color="#bcbcbc">
+            <img src="assets/wall.svg" alt="Wall" />
+          </button>
+          <button class="material-btn" data-material="steel" title="Steel" data-color="#515154">
+            <img src="assets/steel.svg" alt="Steel" />
+          </button> 
+        </div>
+      </div>
+
+      <!-- Right Side: Canvas + Controls -->
+      <div id="canvas-container">
+        <canvas id="sim"></canvas>
+
+        <div id="bottom-bar">
+          <button id="clear-btn" title="Clear All">Clear</button>
+          <button class="material-btn" data-material="erase" title="Erase" data-color="darkgrey">
+            <img src="assets/erase.svg" alt="Erase" />
+          </button>
+          <label for="brush">Brush Size:</label>
+          <input
+            type="range"
+            id="brush"
+            min="1"
+            max="10"
+            step="1"
+            value="1"
+          />
+        </div>
+      </div>
     </div>
-
-    <canvas id="sim"></canvas>
-
-    <script src="main.js"></script>
   </body>
+  <script src="main.js"></script>
 </html>
+
